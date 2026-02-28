@@ -1,0 +1,157 @@
+library(parallel)
+library(data.table)
+
+res_20_05_error = mclapply(1:50, function(i) {
+  tryCatch({
+    expected_spectra2 = copy(expected_spectra)
+    set.seed(i ^ 2)
+    expected_spectra2[, Intensity := Intensity + 0.01 * Intensity * rnorm(.N, 0, 1), by = c("Time", "Peptide")]
+    expected_spectra2[, Rep := "1"]
+    
+    ana_grad = get_analytical_gradient_loss(expected_spectra2, cl_data, ps_m, 
+                                            unique(cl_data[, .(Segment, MaxUptake)])$MaxUptake,
+                                            time_0_data, und_d, NULL, 1)
+    zeros_search = tryCatch({nleqslv::nleqslv(true_params, ana_grad, 
+                                              control = list(maxit = 300, xtol = 1e-12, ftol = 1e-7, trace = 1))},
+                            error = function(e) NULL)
+    
+    if (!is.null(zeros_search) & zeros_search$termcd == 1) {
+      observed_spectra = expected_spectra2
+      
+      initial_solution = rep(0, length(true_params))
+      current_solution = zeros_search$x
+      current_parameters = current_solution
+      sols_ratio = abs(initial_solution - current_solution)/max(abs(initial_solution), 
+                                                                1e-06)
+      iter = 1
+      while (iter <= max_iter & max(sols_ratio) >= tolerance) {
+        print(paste("Iteration: ", iter, ",", "relative difference:", 
+                    max(sols_ratio)))
+        current_weights = getCurrentWeights(current_solution, 
+                                            observed_spectra, peptide_segment_structure, 
+                                            num_parameters, undeuterated_dists)
+        current_theta = getCurrentTheta(current_solution, 
+                                        observed_spectra, current_weights, peptide_segment_structure, 
+                                        num_parameters, undeuterated_dists)
+        
+        current_ana_grad = get_analytical_gradient_loss(expected_spectra2, cl_data, ps_m, 
+                                                        unique(cl_data[, .(Segment, MaxUptake)])$MaxUptake,
+                                                        time_0_data, und_d, current_weights, current_theta)
+        current_zeros_search = tryCatch({nleqslv::nleqslv(true_params, current_ana_grad, 
+                                                          control = list(maxit = 300, xtol = 1e-12, ftol = 1e-7, trace = 1))},
+                                        error = function(e) NULL)
+        
+        if (!is.null(current_zeros_search)) {
+          initial_solution = current_solution
+          current_solution = current_zeros_search$x
+          sols_ratio = abs(initial_solution - current_solution)/max(abs(initial_solution), 
+                                                                    1e-06)
+          iter = iter + 1
+        } else {
+          iter = max_iter + 1
+        }
+      }
+      
+      final_comparison = merge(
+        IsoHDX3:::getExpectedSpectra(current_solution, ps_m, num_parameters + 1, expected_spectra2, und_d),
+        expected_spectra2, by = c("Rep", "Peptide", "Time", "IntDiff")
+      )
+      
+      peak_ders = getExpectedPeaksDerivatives(expected_spectra2, cl_data, ps_m, num_parameters, time_0_data, und_d)
+      
+      cov_test = getParametersCovarianceMatrix(final_comparison, peak_ders(current_solution), current_solution, current_theta)
+      
+      res = list(data = expected_spectra2,
+                 fitted_ols = zeros_search,
+                 fitted_plgls = current_zeros_search,
+                 plgls_iter = iter,
+                 sim_iter = i,
+                 cov = cov_test,
+                 theta = current_theta,
+                 weights = current_weights)
+      saveRDS(res, paste0("res_", i, "001", ".RDS"))
+      res
+    } else {
+      NULL
+    }
+  }, error = function(e) NULL)
+}, mc.cores = 5)
+
+saveRDS(res_20_05_error, "../all_res_short_small_001_gls.RDS")
+
+res_20_1_error = mclapply(1:50, function(i) {
+  tryCatch({
+    expected_spectra2 = copy(expected_spectra)
+    set.seed(i ^ 2)
+    expected_spectra2[, Intensity := Intensity + 0.05 * Intensity * rnorm(.N, 0, 1), by = c("Time", "Peptide")]
+    expected_spectra2[, Rep := "1"]
+    
+    ana_grad = get_analytical_gradient_loss(expected_spectra2, cl_data, ps_m, 
+                                            unique(cl_data[, .(Segment, MaxUptake)])$MaxUptake,
+                                            time_0_data, und_d, NULL, 1)
+    zeros_search = tryCatch({nleqslv::nleqslv(true_params, ana_grad, 
+                                              control = list(maxit = 300, xtol = 1e-12, ftol = 1e-7, trace = 1))},
+                            error = function(e) NULL)
+    
+    if (!is.null(zeros_search) & zeros_search$termcd == 1) {
+      observed_spectra = expected_spectra2
+      
+      initial_solution = rep(0, length(true_params))
+      current_solution = zeros_search$x
+      current_parameters = current_solution
+      sols_ratio = abs(initial_solution - current_solution)/max(abs(initial_solution), 
+                                                                1e-06)
+      iter = 1
+      while (iter <= max_iter & max(sols_ratio) >= tolerance) {
+        print(paste("Iteration: ", iter, ",", "relative difference:", 
+                    max(sols_ratio)))
+        current_weights = getCurrentWeights(current_solution, 
+                                            observed_spectra, peptide_segment_structure, 
+                                            num_parameters, undeuterated_dists)
+        current_theta = getCurrentTheta(current_solution, 
+                                        observed_spectra, current_weights, peptide_segment_structure, 
+                                        num_parameters, undeuterated_dists)
+        
+        current_ana_grad = get_analytical_gradient_loss(expected_spectra2, cl_data, ps_m, 
+                                                        unique(cl_data[, .(Segment, MaxUptake)])$MaxUptake,
+                                                        time_0_data, und_d, current_weights, current_theta)
+        current_zeros_search = tryCatch({nleqslv::nleqslv(true_params, current_ana_grad, 
+                                                          control = list(maxit = 300, xtol = 1e-12, ftol = 1e-7, trace = 1))},
+                                        error = function(e) NULL)
+        
+        if (!is.null(current_zeros_search)) {
+          initial_solution = current_solution
+          current_solution = current_zeros_search$x
+          sols_ratio = abs(initial_solution - current_solution)/max(abs(initial_solution), 
+                                                                    1e-06)
+          iter = iter + 1
+        } else {
+          iter = max_iter + 1
+        }
+      }
+      
+      final_comparison = merge(
+        IsoHDX3:::getExpectedSpectra(current_solution, ps_m, num_parameters + 1, expected_spectra2, und_d),
+        expected_spectra2, by = c("Rep", "Peptide", "Time", "IntDiff")
+      )
+      
+      peak_ders = getExpectedPeaksDerivatives(expected_spectra2, cl_data, ps_m, num_parameters, time_0_data, und_d)
+      
+      cov_test = getParametersCovarianceMatrix(final_comparison, peak_ders(current_solution), current_solution, current_theta)
+      
+      res = list(data = expected_spectra2,
+                 fitted_ols = zeros_search,
+                 fitted_plgls = current_zeros_search,
+                 plgls_iter = iter,
+                 sim_iter = i,
+                 cov = cov_test,
+                 theta = current_theta,
+                 weights = current_weights)
+      saveRDS(res, paste0("res_", i, "005", ".RDS"))
+      res
+    } else {
+      NULL
+    }
+  }, error = function(e) NULL)
+}, mc.cores = 5)
+saveRDS(res_20_1_error, "../all_res_short_small_005_gls.RDS")

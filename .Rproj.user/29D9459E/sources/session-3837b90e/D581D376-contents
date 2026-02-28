@@ -1,0 +1,91 @@
+library(data.table)
+names(res_20_001_error[[1]])
+thetas_medcl_001 = rbindlist(lapply(res_20_001_error, function(x) {
+  if (!is.null(x)) {
+    if (!is.null(x$fitted_plgls)) {
+      if (max(abs(x$fitted_plgls$fvec)) < 1e-6) {
+        list(theta = x$theta,
+             iter = x$sim_iter,
+             error_sd = 0.01)
+      } else {
+        NULL
+      }     
+    } else {
+      NULL
+    }
+  } else {
+    NULL
+  }
+}))
+thetas_medcl_005 = rbindlist(lapply(res_20_005_error, function(x) {
+  if (!is.null(x)) {
+    if (!is.null(x$fitted_plgls)) {
+      if (max(abs(x$fitted_plgls$fvec)) < 1e-6) {
+        list(theta = x$theta,
+             iter = x$sim_iter,
+             error_sd = 0.05)
+      } else {
+        NULL
+      }     
+    } else {
+      NULL
+    }
+  } else {
+    NULL
+  }
+}))
+
+rbind(thetas_medcl_001, thetas_medcl_005)[, .(avetheta = mean(theta, na.rm = T)), by = "error_sd"]
+# error_sd  avetheta
+# <num>     <num>
+#   1:     0.01 0.9773391
+# 2:     0.05 0.9922428
+
+# res_20_05_error[[1]]
+# ps_m
+names(res_20[[1]])
+thetas_smallcl_001 = rbindlist(lapply(res_20, function(x) {
+  if (!is.null(x)) {
+    if (!is.null(x$fitted_plgls)) {
+      if (max(abs(x$fitted_plgls$fvec)) < 1e-6) {
+        list(theta = x$theta,
+             iter = x$sim_iter,
+             error_sd = 0.01)
+      } else {
+        NULL
+      }     
+    } else {
+      NULL
+    }
+  } else {
+    NULL
+  }
+}))
+thetas_smallcl_005 = rbindlist(lapply(res_20_005_error, function(x) {
+  if (!is.null(x)) {
+    if (!is.null(x$fitted_plgls)) {
+      if (max(abs(x$fitted_plgls$fvec)) < 1e-6) {
+        list(theta = x$theta,
+             iter = x$sim_iter,
+             error_sd = 0.05)
+      } else {
+        NULL
+      }     
+    } else {
+      NULL
+    }
+  } else {
+    NULL
+  }
+}))
+
+print(xtable::xtable(cbind(cluster = rep(c("Data set 1",
+                                           "Data set 2"),
+                                         each = 2),
+                           rbind(rbind(thetas_smallcl_001, thetas_smallcl_005)[, .(avetheta = mean(theta, na.rm = T),
+                                                                                   vartheta = var(theta, na.rm = T)), by = "error_sd"],
+                                 
+                                 rbind(thetas_medcl_001, thetas_medcl_005)[, .(avetheta = mean(theta, na.rm = T),
+                                                                               vartheta = var(theta, na.rm = T)), by = "error_sd"])), digits = 4), include.rownames = F)
+
+

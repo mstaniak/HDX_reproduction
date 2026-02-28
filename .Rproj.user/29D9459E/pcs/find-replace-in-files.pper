@@ -1,0 +1,19 @@
+{
+    "dialog-state": {
+        "query": "coverage",
+        "path": "~/Dokumenty/Praca/UWr/Badania/OverlappingPeptides2026",
+        "regex": false,
+        "caseSensitive": false,
+        "wholeWord": false,
+        "filePatterns": [
+            "*.r",
+            "*.R"
+        ],
+        "useGitGrep": false,
+        "excludeGitIgnore": true,
+        "excludeFilePatterns": [],
+        "resultsCount": 162,
+        "errorCount": 0,
+        "replaceErrors": ""
+    }
+}

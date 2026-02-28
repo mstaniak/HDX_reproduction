@@ -1,0 +1,357 @@
+library(data.table)
+library(ggplot2)
+
+get_probs = function(pars) {
+  estim_pars_by_seg = IsoHDX3:::getSegmentParametersFromBetas(pars, unique(cl_data[, .(Segment, MaxUptake)])$MaxUptake + 1)
+  estim_seg_probs_by_time = IsoHDX3:::getSegmentProbabilitiesFromParams(estim_pars_by_seg, times)
+  
+  estim_probs_by_time_dt = rbindlist(lapply(seq_along(times), function(ith_time) {
+    rbindlist(lapply(seq_along(colnames(ps_m)[-ncol(ps_m)]), function(ith_seg) {
+      n_ex = seg_dt[SegmentSigned == colnames(ps_m)[ith_seg], SegmentLength + 1]
+      list(Time = rep(times[ith_time], n_ex),
+           Segment = rep(colnames(ps_m)[-ncol(ps_m)][ith_seg], n_ex),
+           NumExchanged = seq_len(n_ex) - 1,
+           Probability = estim_seg_probs_by_time[[ith_time]][[ith_seg]])
+    }))
+  }))
+  estim_probs_by_time_dt
+}
+
+res_50_short_seg_homo_error = unlist(res_50_short_seg_homo_error, F, F)
+names(res_50_short_seg_homo_error[[1]])
+res_homo_small_probs = rbindlist(lapply(res_50_short_seg_homo_error, function(x) {
+  print(x$iter)
+  if (!is.null(x$fitted)) {
+    if (max(abs(x$fitted$fvec)) < 1e-6) {
+      probs_comp = get_probs(x$fitted$x)
+    } else {
+      probs_comp = data.table()
+    }
+    if (nrow(probs_comp) > 0) {
+      probs_comp[, error_sd := x$error_sd]
+      probs_comp[, iter := x$iter]
+      probs_comp
+    } else {
+      NULL
+    }
+  } else {
+    NULL
+  }
+}))
+comp = merge(res_homo_small_probs, probs_by_time_dt,
+             by = c("Segment", "Time", "NumExchanged"))
+comp[, Segment := factor(Segment, levels = seg_dt$SegmentSigned, ordered = T)]
+
+unique(comp[, .(error_sd, iter)])
+
+averages = comp[, .(mean_prob = mean(Probability.x),
+                    sd = sd(Probability.x),
+                    n = .N,
+                    true_value = unique(Probability.y)),
+                by = c("Segment", "Time", "NumExchanged", "error_sd")]
+averages[, lower_conf := mean_prob - qt(1 - 0.05/2, n - 1) * sd / sqrt(n)]
+averages[, upper_conf := mean_prob + qt(1 - 0.05/2, n - 1) * sd / sqrt(n)]
+
+# averages[, SegmentShort := stringr::str_replace_all(Segment, "[A-Z]+", "")]
+# segm_order_short = unique(averages[order(Segment), .(Segment, SegmentShort)])$SegmentShort
+# averages[, SegmentShort := factor(SegmentShort, levels = segm_order_short, ordered = T)]
+
+ggplot(averages) +
+  # geom_point(aes(x = Time, y = mean_prob, color = error_sd)) + # ,group = error_sd, color = error_sd
+  geom_line(aes(x = Time, y = mean_prob, 
+                group = as.character(error_sd), 
+                color = as.character(error_sd))) + # , group = error_sd, color = error_sd
+  # geom_linerange(aes(x = Time, ymin = lower_conf, ymax = upper_conf)) +
+  geom_point(aes(x = Time, y = true_value), color = "red") +
+  facet_grid(Segment ~ paste("no. ex.:", NumExchanged), scales = "free") +
+  scale_color_manual(name = "std. dev.", values = viridis::viridis(3)[-1]) +
+  xlab("time") +
+  ylab("exchange probability") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 8),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12)) 
+ggsave("../../smallcl_probs_plot_homo.png", device = "png", scale = 1,
+       width = 7, height = 5, units = "in", dpi = 300)
+
+
+ggplot(res_homo_small_probs[Segment == unique(Segment)[1]],
+       aes(x = reorder(as.character(Time), Time), y = Probability, 
+           fill = reorder(as.character(error_sd), error_sd))) +
+  geom_boxplot(size = 1.1) +
+  geom_point(aes(x = reorder(as.character(Time), Time), y = Probability),
+             data = probs_by_time_dt[Segment == unique(Segment)[1]],
+             color = "red", size = 1.2, inherit.aes = F) +
+  scale_fill_manual(name = "std. dev", values = viridis::viridis(3)[-1]) +
+  xlab("time") +
+  ylab("exchange probability") +
+  facet_grid(Segment ~ NumExchanged) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12))
+ggsave("hdx_smallcl_homo_probs_ex.png", device = "png", scale = 1, width = 10, height = 10, units = "in", dpi = 300)
+
+
+comp[, .(mse = mean((Probability.x - Probability.y)^2)), by = c("Segment", "Time", "error_sd")][, .(mse = mean(mse)), by = "error_sd"]
+comp[, .(amae = mean(abs(Probability.x - Probability.y) / max(Probability.y, 1e-6))), by = c("Segment", "NumExchanged", "Time", "error_sd")][, .(amae = mean(amae)), by = "error_sd"]
+
+dcast(comp[, .(mse = mean((Probability.x - Probability.y)^2)), by = c("Segment", "NumExchanged", "Time", "error_sd")],
+      error_sd + Segment ~ Time, value.var = "mse", fun.aggregate = mean)
+xtable::xtable(dcast(comp[, .(rmae = mean(abs(Probability.x - Probability.y) / max(Probability.y, 1e-6))), by = c("Segment", "Time", "error_sd")],
+                     error_sd + Segment ~ Time, value.var = "rmae", fun.aggregate = mean)[order(error_sd, Segment)], digits = 3)
+
+names(res_raw[[1]])
+res_homo_small_vars_model = rbindlist(lapply(res_raw, function(x) {
+  variances = diag(x$cov)
+  list(iter = x$sim_iter,
+       error_sd = x$error_sd,
+       param_id = seq_along(variances),
+       model_vars = variances)
+}))
+res_homo_small_vars_emp = rbindlist(lapply(res_raw, function(x) {
+  list(iter = x$sim_iter,
+       error_sd = x$error_sd,
+       param_id = seq_along(x$fitted_plgls$x),
+       param_val = x$fitted_plgls$x)
+}))
+
+ggplot(merge(
+  res_homo_small_vars_emp[, .(emp_var = var(param_val)), by = c("error_sd", "param_id")],
+  res_homo_small_vars_model[, .(avg_model_var = mean(model_vars)), by = c("error_sd", "param_id")],
+  by = c("error_sd", "param_id")
+),
+aes(x = emp_var, y = avg_model_var, color = reorder(as.character(error_sd), error_sd))) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0) +
+  scale_color_manual(name = "std. dev.", values = viridis::viridis(3)[-1]) +
+  theme_bw() +
+  xlab("empirical variance") +
+  ylab("average model-based variance") +
+  theme(legend.position = "bottom",
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12))
+
+
+
+# Var and bias
+res_homo_small_par_vals = rbindlist(lapply(res_50_short_seg_homo_error, function(x) {
+  if (!is.null(x$fitted)) {
+    if (max(abs(x$fitted$fvec)) < 1e-6) {
+      list(iter = x$iter,
+           error_sd = x$error_sd,
+           param_id = seq_along(x$fitted$x),
+           param_val = x$fitted$x)
+    } else {
+      NULL
+    }
+  } else {
+    NULL
+  }
+}))
+
+ggplot(res_homo_small_par_vals,
+       aes(x = reorder(as.character(param_id), param_id), y = param_val)) +
+  geom_boxplot() +
+  facet_grid(~error_sd) +
+  theme_bw()
+
+merge(data.table(param_val_true = true_params,
+                 param_id = seq_along(true_params)),
+      res_homo_small_par_vals, by = "param_id"
+)[, .(bias = mean(param_val_true - param_val),
+      var = var(param_val)),
+  by = "error_sd"]
+merge(data.table(param_val_true = true_params,
+                 param_id = seq_along(true_params)),
+      res_homo_small_par_vals, by = "param_id"
+)[, .(bias = mean(param_val_true - param_val),
+      var = var(param_val)),
+  by = c("param_id", "error_sd")]
+
+ps_m
+
+ggplot(probs_by_time_dt, aes(x = Time, y = Probability,
+                             group = reorder(as.character(NumExchanged), NumExchanged),
+                             color = reorder(as.character(NumExchanged), NumExchanged))) +
+  geom_line(size = 1.2) +
+  geom_point(size = 1.4) +
+  scale_color_discrete(name = "no. exchanged") +
+  xlab("time") +
+  ylab("probability") +
+  facet_grid(~Segment) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        strip.text = element_text(size = 10)) 
+ggsave("hdx_true_probs_smallcl.png", device = "png", width = 10, height = 5, units = "in", scale = 1, dpi = 300)
+# cl_data
+
+
+print(xtable::xtable(merge(data.table(param_val_true = true_params,
+                                      param_id = seq_along(true_params)),
+                           res_homo_small_par_vals, by = "param_id"
+)[, .(bias = mean(param_val_true - param_val),
+      var = var(param_val)),
+  by = c("param_id", "error_sd")][order(error_sd, param_id), .(error_sd, param_id, bias, var)],
+digits = 3), include.rownames = F)
+
+print(xtable::xtable(merge(data.table(param_val_true = true_params,
+                                      param_id = seq_along(true_params)),
+                           res_homo_small_par_vals, by = "param_id"
+)[, .(bias = mean(param_val_true - param_val),
+      var = var(param_val)),
+  by = c("param_id", "error_sd")][error_sd == 0.05][order(error_sd, param_id), .(param_id, bias, var)],
+digits = 3), include.rownames = F)
+
+
+
+print(xtable::xtable(merge(merge(data.table(param_val_true = true_params,
+                                            param_id = seq_along(true_params)),
+                                 res_homo_small_par_vals, by = "param_id"
+)[, .(bias = mean(param_val_true - param_val),
+      var = var(param_val)),
+  by = c("param_id", "error_sd")][error_sd == 0.5],
+res_homo_small_vars_model[, .(avg_model_var = mean(model_vars, na.rm = T)), by = c("error_sd", "param_id")][error_sd == 0.5],
+by = c("error_sd", "param_id"))[order(error_sd, param_id), .(param_id, bias, empirical_var = var, model_var = avg_model_var)],
+digits = 3), include.rownames = F)
+
+print(xtable::xtable(merge(merge(data.table(param_val_true = true_params,
+                                            param_id = seq_along(true_params)),
+                                 res_homo_small_par_vals, by = "param_id"
+)[, .(bias = mean(param_val_true - param_val),
+      var = var(param_val)),
+  by = c("param_id", "error_sd")],
+res_homo_small_vars_model[, .(avg_model_var = mean(model_vars, na.rm = T)), by = c("error_sd", "param_id")],
+by = c("error_sd", "param_id"))[order(error_sd, param_id), .(error_sd, param_id, bias, empirical_var = var, model_var = avg_model_var)],
+digits = 3), include.rownames = F)
+
+
+ggplot(merge(
+  res_homo_small_vars_emp[, .(emp_var = var(param_val, na.rm = T)), by = c("error_sd", "param_id")],
+  res_homo_small_vars_model[, .(avg_model_var = mean(model_vars, na.rm = T)), by = c("error_sd", "param_id")],
+  by = c("error_sd", "param_id")
+), 
+aes(x = emp_var, y = avg_model_var, color = reorder(as.character(error_sd), error_sd))) +
+  geom_point(size = 2) +
+  scale_color_manual(name = "std. dev.", values = viridis::viridis(3)[-1]) +
+  geom_abline(slope = 1, intercept = 0, color = viridis::viridis(4)[1]) + 
+  xlab("observed variance") +
+  ylab("mean model-based variance") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 14),
+        axis.text = element_text(size = 8),
+        legend.title = element_text(size = 14),
+        strip.text.y = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        legend.position = "bottom")
+ggsave("../hdx_smallcl_plgls_var_comp_homo.png", device = "png", scale = 1, width = 10, height = 10, units = "in", dpi = 300)
+
+
+
+
+comp[, SegmentShort := stringr::str_replace_all(Segment, "[A-Z]+", "")]
+comp[, SegmentShort := factor(SegmentShort, levels = segm_order_short, ordered = T)]
+
+
+ggplot(comp[Segment == unique(sort(Segment))[1]],
+       aes(x = reorder(as.character(Time), Time),
+           y = Probability.x, color = reorder(as.character(error_sd), error_sd))) +
+  geom_boxplot() +
+  geom_point(aes(x = reorder(as.character(Time), Time), y = Probability.y), color = "red") +
+  facet_wrap(SegmentShort ~ paste("no. ex.:", NumExchanged),
+             scales = "free_y") +
+  scale_color_manual(name = "std. dev.", values = viridis::viridis(3)[-1]) +
+  xlab("time") +
+  ylab("exchange probability") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 8),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12)) 
+ggsave("../../hdx_smallcl_homo_example_boxplots_probs.png", device = "png", scale = 1, width = 10, height = 10, units = "in", dpi = 300)
+
+
+true_info = rbindlist(lapply(seq_along(true_params_struct),
+                             function(i) {
+                               x = true_params_struct[[i]]
+                               list(segment_id = i,
+                                    true_value = x,
+                                    prob = c("int", 1:(length(x) - 1)))
+                             }))
+true_info[, param_id := seq_along(true_value)]
+
+comp = merge(res_homo_small_par_vals, true_info, by = "param_id")
+
+# wide_form = dcast(res_homo_small_par_vals, param_id ~ error_sd, 
+#                   value.var = c("param_val"), fun.aggregate = function(x) mean(x, na.rm = T))
+# wide_form = merge(wide_form, true_info, by = "param_id")
+
+comp_all_homo = res_homo_small_par_vals[, .(mean_estimated = mean(param_val, na.rm = T),
+                                            empirical_var = var(param_val, na.rm = T),
+                                            n = .N),
+                                        by = c("error_sd", "param_id")]
+
+unique(comp_all_homo[, .(error_sd, n)])
+unique(comp_all_hetero[, .(error_sd, n)])
+
+wide_form = dcast(comp_all_homo, param_id ~ error_sd, 
+                  value.var = c("mean_estimated", "empirical_var"))
+wide_form = merge(wide_form, true_info, by = "param_id")
+
+print(xtable::xtable(
+  wide_form[, .(segment_id, prob, true_value,
+                mean_estimated_0.5, 
+                rel_error_0.5 = 100 * (mean_estimated_0.5 - true_value) / true_value, 
+                10^4 * empirical_var_0.5,
+                mean_estimated_1, 
+                rel_error_1 = 100 * (mean_estimated_1 - true_value) / true_value,
+                10^4 * empirical_var_1)], digits = 3), include.rownames = F)
+
+
+ggplot(rbind(
+  cbind(comp_all_homo_plgls, method = "PL-GLS"),
+  cbind(comp_all_homo_ols, method = "OLS")),
+  aes(x = reorder(as.character(param_id), param_id), y = mean_estimated)) +
+  geom_boxplot() +
+  geom_point(aes(y = true_value), color = "red", size = 1.5) +
+  facet_grid(~error_sd) +
+  theme_bw()
+
+
+print(xtable::xtable(
+  wide_form[, .(segment_id, prob, true_value.x,
+                mean_estimated_0.5, 
+                rel_error_0.5 = 100 * (mean_estimated_0.5 - true_value.x) / true_value.x, 
+                mean_estimated_1, 
+                rel_error_1 = 100 * (mean_estimated_1 - true_value.x) / true_value.x)], digits = 3), include.rownames = F)
+
+
+ggplot(rbind(
+  cbind(comp_all_homo_plgls, method = "PL-GLS"),
+  cbind(comp_all_homo_ols, method = "OLS")),
+  aes(x = reorder(as.character(param_id), param_id), y = mean_estimated)) +
+  geom_boxplot() +
+  geom_point(aes(y = true_value), color = "red", size = 1.5) +
+  facet_grid(~error_sd) +
+  theme_bw()
+
+
+print(xtable::xtable(
+  wide_form[, .(segment_id, prob, true_value.x,
+                mean_estimated_0.5, 
+                rel_error_0.5 = 100 * (mean_estimated_0.5 - true_value.x) / true_value.x, 
+                mean_estimated_1, 
+                rel_error_1 = 100 * (mean_estimated_1 - true_value.x) / true_value.x)], digits = 3), include.rownames = F)
