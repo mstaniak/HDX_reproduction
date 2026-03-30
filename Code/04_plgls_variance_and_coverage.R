@@ -120,8 +120,9 @@ get_coverages = function(model_variances, true_params_struct) {
   model_variances_with_true[, upper := estimated + qnorm(1 - 0.05/2) * sqrt(model_variance)]
   
   
-  coverages = model_variances_with_true[, .(coverage = 100 * mean(lower <= true_params & true_params <= upper)),
-                                        by = c("param_id", "error_sd", "segment_id")][order(error_sd, segment_id, param_id), .(error_sd, segment_id, param_id, coverage)]
+  coverages = model_variances_with_true[, .(coverage = 100 * mean(lower <= true_params & true_params <= upper),
+                                            se = 100 * sqrt(mean(lower <= true_params & true_params <= upper) * (1 - mean(lower <= true_params & true_params <= upper)) / .N)),
+                                        by = c("param_id", "error_sd", "segment_id")][order(error_sd, segment_id, param_id), .(error_sd, segment_id, param_id, coverage, se)]
   coverages
 }
 
@@ -214,6 +215,22 @@ print(xtable::xtable(dcast(dataset3_plgls_coverage_homo,
 print(xtable::xtable(dcast(rbind(dataset3_plgls_coverage_hetero, dataset3_plgls_coverage_homo),
                            segment_id + param_id ~ error_sd + VarType, value.var = "coverage"), digits = 0), include.rownames = F)
 
+
+dataset1_plgls_coverage_hetero[, .(AveSE = mean(se)),
+                               by = c("error_sd", "VarType")]
+dataset1_plgls_coverage_homo[, .(AveSE = mean(se)),
+                               by = c("error_sd", "VarType")]
+
+dataset2_plgls_coverage_hetero[, .(AveSE = mean(se)),
+                               by = c("error_sd", "VarType")]
+dataset2_plgls_coverage_homo[, .(AveSE = mean(se)),
+                             by = c("error_sd", "VarType")]
+
+
+dataset3_plgls_coverage_hetero[, .(AveSE = mean(se)),
+                               by = c("error_sd", "VarType")]
+dataset3_plgls_coverage_homo[, .(AveSE = mean(se)),
+                             by = c("error_sd", "VarType")]
 
 # TODO: OLS vs PL-GLS variance plots for all data sets based on the following
 # comp_all_homo_plgls = model_variances_homo_plgls[, .(mean_model_var = mean(model_variance),

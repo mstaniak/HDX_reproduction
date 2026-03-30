@@ -75,9 +75,10 @@ plot_averages = function(ave_ex_probs_tbl) {
     scale_color_manual(name = "std. dev.", values = viridis::viridis(3)[-1]) +
     xlab("time") +
     ylab("exchange probability") +
+    ylim(c(0, 1)) +
     theme_bw() +
     theme(legend.position = "bottom",
-          strip.text = element_text(size = 12),
+          strip.text = element_text(size = 10),
           axis.title = element_text(size = 12),
           axis.text = element_text(size = 8),
           legend.text = element_text(size = 12),
@@ -177,24 +178,24 @@ dataset3_homo_ave_probs = get_averages_table(dataset3_homo_probs)
 
 plot_averages(dataset1_hetero_ave_probs)
 ggsave("./Figures/smallcl_probs_plot_hetero.png", device = "png", scale = 1,
-       width = 7, height = 5, units = "in", dpi = 300)
+       width = 10, height = 10, units = "in", dpi = 300)
 plot_averages(dataset1_homo_ave_probs)
 ggsave("./Figures/smallcl_probs_plot_homo.png", device = "png", scale = 1,
-       width = 7, height = 5, units = "in", dpi = 300)
+       width = 10, height = 10, units = "in", dpi = 300)
 
 plot_averages(dataset2_hetero_ave_probs)
 ggsave("./Figures/medcl_probs_plot_hetero.png", device = "png", scale = 1,
-       width = 7, height = 5, units = "in", dpi = 300)
+       width = 10, height = 10, units = "in", dpi = 300)
 plot_averages(dataset2_homo_ave_probs)
-ggsave("./Figures/medcl_probs_plot_homro.png", device = "png", scale = 1,
-       width = 7, height = 5, units = "in", dpi = 300)
+ggsave("./Figures/medcl_probs_plot_homo.png", device = "png", scale = 1,
+       width = 10, height = 10, units = "in", dpi = 300)
 
 plot_averages(dataset3_hetero_ave_probs)
 ggsave("./Figures/shortsegm_probs_plot_hetero.png", device = "png", scale = 1,
-       width = 7, height = 5, units = "in", dpi = 300)
+       width = 10, height = 10, units = "in", dpi = 300)
 plot_averages(dataset3_homo_ave_probs)
 ggsave("./Figures/shortsegm_probs_plot_homo.png", device = "png", scale = 1,
-       width = 7, height = 5, units = "in", dpi = 300)
+       width = 10, height = 10, units = "in", dpi = 300)
 
 # Example boxplots for the first segment
 plot_boxplots(dataset1_hetero_probs[order(Segment)][Segment == unique(Segment)[1]])
@@ -214,19 +215,25 @@ ggsave("Figures/shortsegm_example_probs_homo.png", device = "png", scale = 1, wi
 
 # Boxplots for all segments
 plot_boxplots(dataset1_hetero_probs)
-ggsave("Figures/smallcl_all_probs_hetero.png", device = "png", scale = 1, width = 10, height = 10, units = "in", dpi = 300)
+ggsave("Figures/smallcl_all_probs_hetero.png", device = "png", 
+       scale = 1, width = 10, height = 10, units = "in", dpi = 300)
 plot_boxplots(dataset1_homo_probs)
-ggsave("Figures/smallcl_all_probs_homo.png", device = "png", scale = 1, width = 10, height = 10, units = "in", dpi = 300)
+ggsave("Figures/smallcl_all_probs_homo.png", device = "png", 
+       scale = 1, width = 10, height = 10, units = "in", dpi = 300)
 
 plot_boxplots(dataset2_hetero_probs)
-ggsave("Figures/medcl_all_probs_hetero.png", device = "png", scale = 1, width = 10, height = 10, units = "in", dpi = 300)
+ggsave("Figures/medcl_all_probs_hetero.png", device = "png",
+       scale = 1, width = 10, height = 10, units = "in", dpi = 300)
 plot_boxplots(dataset2_homo_probs)
-ggsave("Figures/medcl_all_probs_homo.png", device = "png", scale = 1, width = 10, height = 10, units = "in", dpi = 300)
+ggsave("Figures/medcl_all_probs_homo.png", device = "png", 
+       scale = 1, width = 10, height = 10, units = "in", dpi = 300)
 
 plot_boxplots(dataset3_hetero_probs)
-ggsave("Figures/shortsegm_all_probs_hetero.png", device = "png", scale = 1, width = 10, height = 10, units = "in", dpi = 300)
+ggsave("Figures/shortsegm_all_probs_hetero.png", device = "png", 
+       scale = 1, width = 10, height = 10, units = "in", dpi = 300)
 plot_boxplots(dataset3_homo_probs)
-ggsave("Figures/shortsegm_all_probs_homo.png", device = "png", scale = 1, width = 10, height = 10, units = "in", dpi = 300)
+ggsave("Figures/shortsegm_all_probs_homo.png", device = "png", 
+       scale = 1, width = 10, height = 10, units = "in", dpi = 300)
 
 # # comp[, .(mse = mean((Probability.x - Probability.y)^2)), by = c("Segment", "Time", "error_sd")][, .(mse = mean(mse)), by = "error_sd"]
 # comp[, .(amae = mean(abs(Probability.x - Probability.y) / max(Probability.y, 1e-6))), by = c("Segment", "NumExchanged", "Time", "error_sd")][, .(amae = mean(amae)), by = "error_sd"]

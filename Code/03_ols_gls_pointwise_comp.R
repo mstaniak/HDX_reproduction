@@ -65,8 +65,8 @@ plot_pointwise_comparison = function(pointwise_comparison) {
          aes(x = true_value, y = mean_estimated, color = method, shape = method)) +
     geom_point(size = 3)  +
     # geom_label(aes(label = param_id)) +
-    # scale_color_discrete(palette = "viridis") +
-    scale_color_manual(values = rev(viridis::viridis(3)[-1])) +
+    scale_color_discrete(palette = "viridis") +
+    # scale_color_manual(values = rev(viridis::viridis(3)[-1])) +
     geom_abline(slope = 1, intercept = 0) +
     xlab("true value of the parameter") +
     ylab("average estimate") +

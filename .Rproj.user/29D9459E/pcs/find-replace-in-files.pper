@@ -1,6 +1,6 @@
 {
     "dialog-state": {
-        "query": "coverage",
+        "query": "hdx_noisy_spectra_comp.png",
         "path": "~/Dokumenty/Praca/UWr/Badania/OverlappingPeptides2026",
         "regex": false,
         "caseSensitive": false,
@@ -12,7 +12,7 @@
         "useGitGrep": false,
         "excludeGitIgnore": true,
         "excludeFilePatterns": [],
-        "resultsCount": 162,
+        "resultsCount": 1,
         "errorCount": 0,
         "replaceErrors": ""
     }

@@ -39,11 +39,11 @@ get_true_info = function(true_params_struct) {
 
 get_wide_form_data = function(comparison_table, true_info) {
   summary_table = comparison_table[, .(mean_model_var = mean(model_variance),
-                                                 empirical_var = var(estimated),
-                                                 true_value = unique(true_params),
-                                                 mean_estimated = mean(estimated),
-                                                 n = .N),
-                                             by = c("param_id", "error_sd")]
+                                       empirical_var = var(estimated),
+                                       true_value = unique(true_params),
+                                       mean_estimated = mean(estimated),
+                                       n = .N),
+                                   by = c("param_id", "error_sd")]
   wide_form = dcast(summary_table, param_id + true_value ~ error_sd, 
                     value.var = c("n", "mean_estimated", "mean_model_var", "empirical_var"))
   wide_form = merge(wide_form, true_info, by = "param_id")
@@ -161,3 +161,62 @@ print(xtable::xtable(
                         rel_error_1 = 100 * (mean_estimated_1 - true_value.x) / true_value.x,
                         empirical_var_1, mean_model_var_1)],
   digits = 3), include.rownames = F)
+
+
+# TODO: w kodzie powyżej oddzielić tworzenie szerokiej i wąskiej postaci, żeby nie powtarzać się tutaj, tylko używać oryginalnej tabeli
+long_form_hetero_d3 = melt(dataset3_hetero_tbl,
+                           id.vars = c("param_id"),
+                           measure.vars = c("mean_model_var_0.01", "mean_model_var_0.05",
+                                            "empirical_var_0.01", "empirical_var_0.05"))
+long_form_hetero_d3[, VarType := ifelse(grepl("empirical", variable), "empirical", "mean_model")]
+long_form_hetero_d3[, VarSize := ifelse(grepl("_0.01", variable), "0.01", "0.05")]
+
+long_form_homo_d3 = melt(dataset3_homo_tbl,
+                         id.vars = c("param_id"),
+                         measure.vars = c("mean_model_var_1", "mean_model_var_0.5",
+                                          "empirical_var_1", "empirical_var_0.5"))
+long_form_homo_d3[, VarType := ifelse(grepl("empirical", variable), "empirical", "mean_model")]
+long_form_homo_d3[, VarSize := ifelse(grepl("_1", variable), "1", "0.5")]
+
+ggplot(dcast(long_form_hetero_d3, param_id + VarSize ~ VarType, value.var = "value"),
+       aes(x = empirical, y = mean_model, color = VarSize)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0) +
+  # facet_grid(~VarSize) +
+  theme_bw() +
+  scale_color_manual(name = "std. dev", values = rev(viridis::viridis(3)[-1])) +
+  geom_abline(slope = 1, intercept = 0) +
+  xlab("empirical variance") +
+  ylab("average model-based variance") +
+  # geom_point(aes(y = true_value), color = "red", size = 1.5) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12)) 
+ggsave("./Figures/shortsegm_hetero_vars_comp.png", device = "png", scale = 1,
+       width = 7, height = 5, units = "in", dpi = 300)
+
+
+ggplot(dcast(long_form_homo_d3, param_id + VarSize ~ VarType, value.var = "value"),
+       aes(x = empirical, y = mean_model, color = VarSize)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0) +
+  # facet_grid(~VarSize) +
+  theme_bw() +
+  scale_color_manual(name = "std. dev", values = rev(viridis::viridis(3)[-1])) +
+  geom_abline(slope = 1, intercept = 0) +
+  xlab("empirical variance") +
+  ylab("average model-based variance") +
+  # geom_point(aes(y = true_value), color = "red", size = 1.5) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        strip.text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12)) 
+ggsave("./Figures/shortsegm_homo_vars_comp.png", device = "png", scale = 1,
+       width = 7, height = 5, units = "in", dpi = 300)
